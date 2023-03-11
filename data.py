@@ -10,7 +10,12 @@ from torch.distributions import Categorical
 
 class Regression():
 
-    def __init__(self, input_dim, output_dim, weight_matrix: Optional = None):
+    def __init__(
+            self,
+            input_dim: int,
+            output_dim: int,
+            weight_matrix: Optional[Tensor] = None
+        ):
         self.input_dim = input_dim
         self.output_dim = output_dim
         if weight_matrix is None:
@@ -40,13 +45,14 @@ class SequenceRegression(Regression):
     """
     This class randomly selects the index to regress against.
     """
+
     def __init__(
-            self,
-            input_dim,
-            output_dim,
-            sequence_length: int = 10,
-            weight_matrix: Optional = None
-        ):
+        self,
+        input_dim: int,
+        output_dim: int,
+        sequence_length: int = 10,
+        weight_matrix: Optional[Tensor] = None
+    ):
         super().__init__(input_dim, output_dim, weight_matrix)
         self.sequence_length = sequence_length
         self.categorical = Categorical(torch.ones(sequence_length))
@@ -54,7 +60,8 @@ class SequenceRegression(Regression):
     def sample_X(self, batch_size: int) -> Tensor:
         return torch\
             .normal(
-                mean=torch.ones(batch_size, self.sequence_length, self.input_dim),
+                mean=torch.ones(
+                    batch_size, self.sequence_length, self.input_dim),
                 std=0.01
             )
 
@@ -71,4 +78,3 @@ class SequenceRegression(Regression):
             y = self.regr_func(x).t()
         # randomly select a single y
         return X, y
-        
