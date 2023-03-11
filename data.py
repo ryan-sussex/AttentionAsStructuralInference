@@ -28,7 +28,11 @@ class Regression():
     def sample(self, batch_size: int = 1):
         with torch.no_grad():
             X = self.sample_X(batch_size)
-            y = self.regr_func(X)
+            y = self.regr_func(X).t()
+
+            # Put in empty sequence dim
+            X = X[:, None, :]
+            y = y[:, None]
         return X, y
 
 
@@ -64,7 +68,7 @@ class SequenceRegression(Regression):
             placeholder = placeholder.to(torch.int64)
             # placeholder.int_repr()
             x = torch.gather(X, 1, placeholder.to())[:, 0]
-            y = self.regr_func(x)
+            y = self.regr_func(x).t()
         # randomly select a single y
         return X, y
         
