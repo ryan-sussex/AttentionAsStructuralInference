@@ -84,11 +84,10 @@ class ThreeAttention(CausalSelfAttention):
         V = torch.stack([
             v
             for _ in range(T)
-        ], dim=-1).transpose(-3, -2)
-        # print(V.shape)
-        V = V.flatten(start_dim=-2, end_dim=-1).transpose(-2, -1)
+        ], dim=-2)
+        # .transpose(-3, -2)
+        V = V.flatten(start_dim=-3, end_dim=-2)
+        # .transpose(-2, -1)
         # (B, nh, TxT, hs)
         return att @ V
-        # (B, nh, T, TxT) x (B, nh, TxT, hs) -> 
-
-        # (B, nh, T, hs)
+        # (B, nh, T, TxT) x (B, nh, TxT, hs) -> (B, nh, T, h_s)
