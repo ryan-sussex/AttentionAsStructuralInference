@@ -1,4 +1,5 @@
 import math
+from itertools import combinations
 
 import torch
 import torch.nn as nn
@@ -26,6 +27,14 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
+    @staticmethod    
+    def softmax(x):
+        return F.softmax(x, dim=-1)
+
+    @staticmethod
+    def value(att, v):
+        return att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+
     def forward(self, x):
         B, T, C = x.size() 
         # batch size, sequence length, embedding dimensionality (n_embd)
@@ -37,7 +46,7 @@ class CausalSelfAttention(nn.Module):
         # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) 
+        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
 
         # causal self-attention; Self-attend:
@@ -46,9 +55,40 @@ class CausalSelfAttention(nn.Module):
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         # Softmax
-        att = F.softmax(att, dim=-1)
-        # att = self.attn_dropout(att)
-        y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        att = self.softmax(att)
+        y = self.value(att, v)
+
         y = y.transpose(1, 2).contiguous().view(B, T, C) 
         # re-assemble all head outputs side by side
         return y
+
+
+class ThreeAttention(CausalSelfAttention):
+
+    @staticmethod
+    def softmax(x: torch.Tensor):
+        # (B, nh, T, T)
+        _, _, _, T = x.size()
+        # # (B, nh, T, T, T)
+        stacked = torch.stack([
+            x + x.roll(1, dims=-1)
+            for _ in range(T)
+        ], dim=-1)
+        stacked = stacked.flatten(start_dim=-2, end_dim=-1)
+        return F.softmax(stacked, dim=-1)   # (B, nh, T, TxT)
+
+    @staticmethod
+    def value(att, v):
+        _, _, T, _ = att.size()
+        # (B, nh, T, TxT)
+        V = torch.stack([
+            v
+            for _ in range(T)
+        ], dim=-1).transpose(-3, -2)
+        # print(V.shape)
+        V = V.flatten(start_dim=-2, end_dim=-1).transpose(-2, -1)
+        # (B, nh, TxT, hs)
+        return att @ V
+        # (B, nh, T, TxT) x (B, nh, TxT, hs) -> 
+
+        # (B, nh, T, hs)

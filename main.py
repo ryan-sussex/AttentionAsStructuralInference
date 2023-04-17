@@ -3,7 +3,7 @@ from torch.nn import MSELoss
 import torch.optim as optim
 
 from data import Regression, SequenceRegression
-from models import CausalSelfAttention
+from models import CausalSelfAttention, ThreeAttention
 
 
 N_BATCH = 1
@@ -18,6 +18,8 @@ class AttentionConfig():
 
 
 attn = CausalSelfAttention(AttentionConfig())
+attn = ThreeAttention(AttentionConfig())
+
 regr_problem = Regression(input_dim=EMBED_DIM, output_dim=EMBED_DIM)
 seq_regr_problem = SequenceRegression(
     input_dim=EMBED_DIM, output_dim=EMBED_DIM, sequence_length=N_SEQ)
@@ -29,6 +31,7 @@ def linear_regression():
     N_SAMPLES = 500
     for _ in range(N_SAMPLES):
         X, y = regr_problem.sample(batch_size=1000)
+        print(X.shape)
         output = attn(X)
         out: torch.Tensor = loss(output, y)
         out.backward()
@@ -51,7 +54,7 @@ def seq_regression():
 
 if __name__ == "__main__":
 
-    linear_regression()
+    # linear_regression()
     seq_regression()
     # Example of regression where the input of the regression is chosen at random
 
