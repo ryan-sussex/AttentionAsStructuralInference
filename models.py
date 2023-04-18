@@ -17,7 +17,7 @@ class CausalSelfAttention(nn.Module):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
         # output projection
         self.register_buffer(
             "bias", 
@@ -67,6 +67,9 @@ class ThreeAttention(CausalSelfAttention):
 
     @staticmethod
     def softmax(x: torch.Tensor):
+        """
+        Return a probability per triple (x_i, (x_j, x_k))
+        """
         # (B, nh, T, T)
         _, _, _, T = x.size()
         # # (B, nh, T, T, T)

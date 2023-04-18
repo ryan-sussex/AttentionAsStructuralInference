@@ -25,7 +25,7 @@ class Regression():
 
     def sample_X(self, batch_size: int) -> Tensor:
         return torch\
-            .normal(mean=torch.ones(batch_size, self.input_dim), std=0.01)
+            .normal(mean=torch.ones(batch_size, self.input_dim)* 10, std=5)
 
     def regr_func(self, X):
         return F.linear(self.weight_matrix, X)
@@ -52,9 +52,9 @@ class AutoRegression(Regression):
     ):
         super().__init__(input_dim, output_dim, weight_matrix)
         self.autoregressive_matrix = (
-            torch.rand(
+            torch.ones(
                 (input_dim, input_dim)
-            )
+            ) * 10
         )
         self.sequence_length = sequence_length
         self.ingroup_size = ingroup_size
