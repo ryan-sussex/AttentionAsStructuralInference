@@ -4,12 +4,12 @@ from torch.nn import Linear
 import torch.optim as optim
 
 from data import Regression, SequenceRegression, TwoVarSequenceRegression, AutoRegression
-from models import CausalSelfAttention, ThreeAttention
+from models import CausalSelfAttention, ThreeAttention, LongAttention
 
 
 N_BATCH = 1
 BATCH_SIZE = 5000
-N_SAMPLES = 5000
+N_SAMPLES = 20000
 
 N_SEQ = 5
 EMBED_DIM = 1
@@ -61,10 +61,11 @@ def linear_regression():
         print(param)
 
 def seq_regression(problem):
-    # attn = CausalSelfAttention(AttentionConfig())
-    attn = ThreeAttention(AttentionConfig())
+    attn = CausalSelfAttention(AttentionConfig())
+    # attn = ThreeAttention(AttentionConfig())
+    # attn = LongAttention(AttentionConfig())
 
-    optimizer = optim.Adam(attn.parameters(), lr=LR, weight_decay=1)
+    optimizer = optim.Adam(attn.parameters(), lr=LR, weight_decay=2)
     for _ in range(N_SAMPLES):
         X, y = problem.sample(batch_size=BATCH_SIZE)
         # print(X[0] , y[0])
@@ -89,8 +90,8 @@ def seq_regression(problem):
             print(y[0])
             # raise
             print(out.item())
-    for param in attn.parameters():
-        print(param)
+            for param in attn.parameters():
+                print(param)
 
 if __name__ == "__main__":
 
