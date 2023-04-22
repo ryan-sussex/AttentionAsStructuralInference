@@ -80,7 +80,7 @@ def seq_regression(problem):
         output = attn(X)
         # print(output.shape)
 
-        output_pred = output[:, N_AUTOREGRESS - 1, :]
+        output_pred = output[:, - 1, :]
         out: torch.Tensor = loss(output_pred, y)
         out.backward()
         optimizer.step()

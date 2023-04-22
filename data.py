@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.distributions import Categorical
 
+import random
+
 
 STD = 0.01
 
@@ -84,20 +86,31 @@ class AutoRegression(Regression):
             )
             in_group.append(new)
 
-        in_group.append(outgroup)
+        in_group = [outgroup] + in_group  
         X = torch.cat(in_group, dim=1)
         return X
 
     def sample(self, batch_size: int = 1):
         with torch.no_grad():
             X = self.sample_X(batch_size)
-            x = X[:,0, -1]
+            x = X[:, self.sequence_length - self.ingroup_size, -1]
+            # print(self.sequence_length - self.ingroup_size)
             for i in range(1, self.ingroup_size):
-                x = x + X[:,i, -1]
+                # print(self.sequence_length - self.ingroup_size + i)
+                x = x + X[:, self.sequence_length - self.ingroup_size + i, -1]
 
             x = x[:, None]
             y = self.regr_func(x).t()
         # randomly select a single y
+        # shuffle X
+        # print(X.size())
+        idx = list(range(self.sequence_length - 1))
+        random.shuffle(idx)
+        # raise
+        idx = idx + [self.sequence_length - 1]
+        # print(idx)
+        # raise
+        X = X[:, idx, :]
         return X, y
 
 
