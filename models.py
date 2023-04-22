@@ -1,5 +1,4 @@
 import math
-from itertools import combinations
 
 import torch
 import torch.nn as nn
@@ -89,9 +88,7 @@ class ThreeAttention(CausalSelfAttention):
             v
             for _ in range(T)
         ], dim=-2)
-        # .transpose(-3, -2)
         V = V.flatten(start_dim=-3, end_dim=-2)
-        # .transpose(-2, -1)
         # (B, nh, TxT, hs)
         return att @ V
         # (B, nh, T, TxT) x (B, nh, TxT, hs) -> (B, nh, T, h_s)
@@ -102,7 +99,7 @@ class LongAttention(CausalSelfAttention):
         super().__init__(config)
 
     @staticmethod
-    def softmax(x: torch.Tensor):
+    def softmax(x: torch.Tensor) -> torch.Tensor:
         """
         Return a probability per triple (x_i, (x_j, x_k))
         """
@@ -110,21 +107,15 @@ class LongAttention(CausalSelfAttention):
         # (B, nh, T, T)
         P = F.softmax(x, dim=-1)
         I = torch.eye(T).reshape(1, T, T).repeat(B, nh, 1, 1)
-        # print(I)
         paths = (I + P + P @ P) / 3
-        # print(paths[0, 0, :, :])
         return paths   # (B, nh, T, TxT)
 
-    # @staticmethod
-    # def value(att, v):
-    #     _, _, T, _ = att.size()
-    #     # (B, nh, T, TxT)
-    #     V = torch.stack([
-    #         v
-    #         for _ in range(T)
-    #     ], dim=-2)
-    #     # .transpose(-3, -2)
-    #     V = V.flatten(start_dim=-3, end_dim=-2)
-    #     # .transpose(-2, -1)
-    #     # (B, nh, TxT, hs)
-    #     return att @ V
+
+# class StackedAttention(nn.Module): 
+#     def __init__(self, config, attention_model, layers: int = 2) -> None:
+#         self.attention = nn.Sequential(
+#             [("attention_{i}", attention_model(config))]
+#         )
+    
+#     def forward(self, x):
+#         return self.attention(x)
