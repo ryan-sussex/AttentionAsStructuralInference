@@ -8,6 +8,8 @@ from torch import Tensor
 from torch.distributions import Categorical
 
 
+STD = 0.01
+
 class Regression():
 
     def __init__(
@@ -19,13 +21,13 @@ class Regression():
         self.input_dim = input_dim
         self.output_dim = output_dim
         if weight_matrix is None:
-            self.weight_matrix = torch.ones(
-                (output_dim, input_dim)
-            )
+            self.weight_matrix = torch.rand(
+                (output_dim, 1)
+            ) * 10
 
     def sample_X(self, batch_size: int) -> Tensor:
         return torch\
-            .normal(mean=torch.ones(batch_size, self.input_dim)* 10, std=5)
+            .normal(mean=torch.ones(batch_size, self.input_dim), std=STD)
 
     def regr_func(self, X):
         return F.linear(self.weight_matrix, X)
@@ -52,7 +54,7 @@ class AutoRegression(Regression):
     ):
         super().__init__(input_dim, output_dim, weight_matrix)
         self.autoregressive_matrix = (
-            torch.ones(
+            torch.randn(
                 (input_dim, input_dim)
             ) * 10
         )
@@ -63,13 +65,13 @@ class AutoRegression(Regression):
         outgroup_size = self.sequence_length - self.ingroup_size
 
         in_group = [ torch.normal(
-            mean=torch.ones(batch_size, 1, self.input_dim) * 10,
-            std=10
+            mean=torch.ones(batch_size, 1, self.input_dim),
+            std=.1
         )
         ]
         outgroup = torch.normal(
-            mean=torch.zeros(batch_size, outgroup_size, self.input_dim),
-            std=.1
+            mean=torch.ones(batch_size, outgroup_size, self.input_dim),
+            std=.001
         )
 
         for i in range(1, self.ingroup_size):
@@ -77,21 +79,23 @@ class AutoRegression(Regression):
                 in_group[i - 1] @ self.autoregressive_matrix
                 + torch.normal(
                     mean=torch.ones(batch_size, 1, self.input_dim),
-                    std=.00001
+                    std=STD
                 )
             )
             in_group.append(new)
 
         in_group.append(outgroup)
-        return torch.cat(in_group, dim=1)
-    
+        X = torch.cat(in_group, dim=1)
+        return X
 
     def sample(self, batch_size: int = 1):
         with torch.no_grad():
             X = self.sample_X(batch_size)
-            x = X[:,0,:]
+            x = X[:,0, -1]
             for i in range(1, self.ingroup_size):
-                x = x + X[:,i,:]
+                x = x + X[:,i, -1]
+
+            x = x[:, None]
             y = self.regr_func(x).t()
         # randomly select a single y
         return X, y

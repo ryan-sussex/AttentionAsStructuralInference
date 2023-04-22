@@ -17,7 +17,7 @@ class CausalSelfAttention(nn.Module):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=False)
+        self.c_attn = nn.Linear(config.n_embd, 2 * config.n_embd + 1, bias=False)
         # output projection
         self.register_buffer(
             "bias", 
@@ -29,7 +29,9 @@ class CausalSelfAttention(nn.Module):
 
     @staticmethod    
     def softmax(x):
-        return F.softmax(x, dim=-1)
+        P = F.softmax(x, dim=-1)
+        print(P[0, 0, :, :])
+        return P
 
     @staticmethod
     def value(att, v):
@@ -46,7 +48,7 @@ class CausalSelfAttention(nn.Module):
         # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        v = v.view(B, T, self.n_head, 1).transpose(1, 2)
         # (B, nh, T, hs)
 
         # causal self-attention; Self-attend:
@@ -58,7 +60,7 @@ class CausalSelfAttention(nn.Module):
         att = self.softmax(att)
         y = self.value(att, v)
 
-        y = y.transpose(1, 2).contiguous().view(B, T, C) 
+        y = y.transpose(1, 2).contiguous().view(B, T, 1) 
         # re-assemble all head outputs side by side
         return y
 
@@ -100,7 +102,6 @@ class LongAttention(CausalSelfAttention):
     def __init__(self, config):
         super().__init__(config)
 
-
     @staticmethod
     def softmax(x: torch.Tensor):
         """
@@ -110,7 +111,9 @@ class LongAttention(CausalSelfAttention):
         # (B, nh, T, T)
         P = F.softmax(x, dim=-1)
         I = torch.eye(T).reshape(1, T, T).repeat(B, nh, 1, 1)
+        # print(I)
         paths = (I + P + P @ P) / 3
+        # print(paths[0, 0, :, :])
         return paths   # (B, nh, T, TxT)
 
     # @staticmethod
