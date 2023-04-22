@@ -66,12 +66,12 @@ class AutoRegression(Regression):
 
         in_group = [ torch.normal(
             mean=torch.ones(batch_size, 1, self.input_dim),
-            std=.1
+            std=10
         )
         ]
         outgroup = torch.normal(
             mean=torch.ones(batch_size, outgroup_size, self.input_dim),
-            std=.001
+            std=10
         )
 
         for i in range(1, self.ingroup_size):

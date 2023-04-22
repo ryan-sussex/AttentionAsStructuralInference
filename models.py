@@ -30,7 +30,6 @@ class CausalSelfAttention(nn.Module):
     @staticmethod    
     def softmax(x):
         P = F.softmax(x, dim=-1)
-        print(P[0, 0, :, :])
         return P
 
     @staticmethod

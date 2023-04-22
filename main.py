@@ -13,11 +13,11 @@ N_BATCH = 1
 BATCH_SIZE = 200
 N_SAMPLES = 120000
 
-N_SEQ = 5
+N_SEQ = 8
 N_AUTOREGRESS = 3
-EMBED_DIM = 2
+EMBED_DIM = 1
 OUTPUT_DIM = 1
-LR = 1e-5
+LR = 1e-4
 
 
 class AttentionConfig():
