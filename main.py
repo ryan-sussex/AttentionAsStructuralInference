@@ -5,21 +5,21 @@ from torch.nn import MSELoss
 import torch.optim as optim
 
 from data import AutoRegression
-from models import CausalSelfAttention, LongAttention
+from models import CausalSelfAttention, LongAttention, ExpandingAttention
 
 
 
 N_BATCH = 1
-BATCH_SIZE = 200
+BATCH_SIZE = 1
 N_SAMPLES = 50000
 
-N_SEQ = 8
-N_AUTOREGRESS = 3
-EMBED_DIM = 1
+N_SEQ = 15
+N_AUTOREGRESS = 2
+EMBED_DIM = 3
 OUTPUT_DIM = 1
 LR = 1e-3
 
-RECORD_EVERY = 1000
+RECORD_EVERY = 200
 
 
 class AttentionConfig():
@@ -59,12 +59,20 @@ def seq_regression(problem, attention_model):
                 f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
             )
             training_history.append(loss.item())
+            print(X)
+            print(y)
+            print(attention_model.record)
+            print(problem.record)
+            # print(attention_model.alpha)
+            # print(attention_model.beta)
 
     return training_history
 
 
 if __name__ == "__main__":
     training_dct = {}
+    attn = ExpandingAttention(AttentionConfig())
+    training_dct["expanding"] = seq_regression(auto_regr_problem, attention_model=attn)
     attn = CausalSelfAttention(AttentionConfig())
     training_dct["standard"] = seq_regression(auto_regr_problem, attention_model=attn)
     attn = LongAttention(AttentionConfig())

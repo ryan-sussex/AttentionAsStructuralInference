@@ -63,6 +63,90 @@ class CausalSelfAttention(nn.Module):
         return y
 
 
+class ExpandingAttention(CausalSelfAttention):
+    def __init__(self, config):
+        super().__init__(config)
+        # Beta distribution prior (for geometric)
+        self.alpha = nn.Parameter(torch.tensor(.0001))
+        self.beta = nn.Parameter(torch.tensor(.0002))
+
+    @staticmethod
+    def get_truncated_window(alpha, beta):
+        # batch size, sequence length, embedding dimensionality (n_embd)
+        p = alpha / (alpha + beta)
+        return 2 / p
+
+
+    @staticmethod    
+    def softmax(x, window):
+        P = F.softmax(x[:, :, -window:], dim=-1)
+        return P
+
+    @staticmethod
+    def beta_update(att: torch.Tensor):
+        count = torch.range(att.size(-1) - 1, 0, step=-1) # T
+        # print(count)
+        beta_update = torch.einsum("bht, t -> bh", att, count)
+        # print("beta update", beta_update)
+        # print(beta)
+        return beta_update
+
+    def forward(self, x):
+        B, T, C = x.size() 
+        # calculate query, key, values 
+        # for all heads in batch and move head forward to be the batch dim
+        q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) 
+        # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, 1).transpose(1, 2)
+        # (B, nh, T, hs)
+
+        # causal self-attention; Self-attend:
+        #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        # Create Attention Matrix
+        att = (q @ k.transpose(-2, -1)) * (.001 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        att = att[:, :, :, -1]
+        # print(att.shape)
+        att[:, :, -1] = float('-inf')
+        # print(att)
+        alpha = self.alpha
+        beta = self.beta
+        window_old = torch.tensor(0)
+        # print("start")
+        for i in range(30):
+            # Softmax
+            k = self.get_truncated_window(alpha, beta)
+            window = torch.ceil(k)
+            if window.item() <= window_old.item():
+                break
+            window = window.to(torch.int) 
+            # window_old = torch.tensor(window.item())
+            att_iter = self.softmax(att, window)
+            alpha = alpha + 1
+            beta = beta + self.beta_update(att_iter)
+
+            # print("beta", beta)
+            # print("window", window)
+            # print("att", att_iter)
+        # raise
+        # print("window", window)
+        att = att_iter
+        self.record = {
+            "attention": att,
+            "window": window
+        }
+        # print(att)
+        # print(v.shape)
+        y = self.value(att, v[:, :, -window:, :])
+        y = y.transpose(1, 2).contiguous().view(B, 1, 1)
+        # print(v)
+        return y
+        
+
+
 class ThreeAttention(CausalSelfAttention):
 
     @staticmethod
