@@ -67,8 +67,8 @@ class ExpandingAttention(CausalSelfAttention):
     def __init__(self, config):
         super().__init__(config)
         # Beta distribution prior (for geometric)
-        self.alpha = nn.Parameter(torch.tensor(.0001))
-        self.beta = nn.Parameter(torch.tensor(.0002))
+        self.alpha = nn.Parameter(torch.tensor(1.))
+        self.beta = nn.Parameter(torch.tensor(5.))
 
     @staticmethod
     def get_truncated_window(alpha, beta):
@@ -78,7 +78,7 @@ class ExpandingAttention(CausalSelfAttention):
 
 
     @staticmethod    
-    def softmax(x, window):
+    def softmax(x, window: torch.Tensor):
         P = F.softmax(x[:, :, -window:], dim=-1)
         return P
 
@@ -114,19 +114,30 @@ class ExpandingAttention(CausalSelfAttention):
         # print(att)
         alpha = self.alpha
         beta = self.beta
-        window_old = torch.tensor(0)
+        k_old = torch.tensor(0)
+        ctr = 0
         # print("start")
         for i in range(30):
             # Softmax
             k = self.get_truncated_window(alpha, beta)
             window = torch.ceil(k)
-            if window.item() <= window_old.item():
-                break
-            window = window.to(torch.int) 
-            # window_old = torch.tensor(window.item())
+            window = window.to(torch.int)
             att_iter = self.softmax(att, window)
             alpha = alpha + 1
             beta = beta + self.beta_update(att_iter)
+            if k > T:
+                break
+            if k < k_old:
+                break
+            # if k_old.item() == window.item():
+            #     ctr +=1
+            # if ctr > 3:
+            #     break
+            k_old = k.detach()
+            # if k > T or window <= k_old:
+            #     break
+            # if ((k + .5) <= k_old.item()):
+            #     break
 
             # print("beta", beta)
             # print("window", window)
@@ -136,10 +147,14 @@ class ExpandingAttention(CausalSelfAttention):
         att = att_iter
         self.record = {
             "attention": att,
-            "window": window
+            "window": window,
+            "k_old": k_old,
+            "iters": i,
+            "k": k
         }
         # print(att)
         # print(v.shape)
+        # print(window)
         y = self.value(att, v[:, :, -window:, :])
         y = y.transpose(1, 2).contiguous().view(B, 1, 1)
         # print(v)

@@ -13,7 +13,7 @@ N_BATCH = 1
 BATCH_SIZE = 1
 N_SAMPLES = 50000
 
-N_SEQ = 15
+N_SEQ = 20
 N_AUTOREGRESS = 2
 EMBED_DIM = 3
 OUTPUT_DIM = 1
@@ -55,14 +55,19 @@ def seq_regression(problem, attention_model):
         loss.backward()
         optimizer.step()
         if batch_no % RECORD_EVERY == 0:
-            print(
-                f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
-            )
-            training_history.append(loss.item())
-            print(X)
-            print(y)
-            print(attention_model.record)
-            print(problem.record)
+            if  loss.item() > 0:
+                print(
+                    f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
+                )
+                training_history.append(loss.item())
+                # print(X)
+                # print(y)
+                print("window", attention_model.record["window"].item())
+                print("iters", attention_model.record["iters"])
+                # print("k", attention_model.record["k"])
+                # print(attention_model.record["attention"])
+
+            # print(problem.record)
             # print(attention_model.alpha)
             # print(attention_model.beta)
 
