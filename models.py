@@ -201,12 +201,12 @@ class EfficientExpandingAttention(CausalSelfAttention):
         window = window.item()
         window = min(T, abs(window))
         geo_probs = torch.tensor([ - i/m  for i in range(1, window+1)]).flip(0)
-        geo_probs = torch.exp(geo_probs)
+        geo_probs =
         print(geo_probs)
         geo_probs = geo_probs[None, None, :]
         P = self.get_window_stacked(k, q, window, T) + geo_probs
         print(geo_probs.sum())
-        P = P / (self.attention_cache["sum"] x geo_probs.sum())
+        P = P / (self.attention_cache["sum"] + geo_probs.sum())
         # print( P.sum(dim=-1) - self.attention_cache["sum"])
         # print(self.attention_cache["sum"])
         # print(P)
