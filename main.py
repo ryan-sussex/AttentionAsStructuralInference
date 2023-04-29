@@ -13,7 +13,7 @@ N_BATCH = 1
 BATCH_SIZE = 1
 N_SAMPLES = 50000
 
-N_SEQ = 20
+N_SEQ = 10
 N_AUTOREGRESS = 2
 EMBED_DIM = 3
 OUTPUT_DIM = 1
@@ -65,11 +65,11 @@ def seq_regression(problem, attention_model):
                 print("window", attention_model.record["window"].item())
                 print("iters", attention_model.record["iters"])
                 # print("k", attention_model.record["k"])
-                # print(attention_model.record["attention"])
+                print(attention_model.record["attention"])
 
             # print(problem.record)
-            # print(attention_model.alpha)
-            # print(attention_model.beta)
+                print(attention_model.alpha)
+                print(attention_model.beta)
 
     return training_history
 

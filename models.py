@@ -68,7 +68,7 @@ class ExpandingAttention(CausalSelfAttention):
         super().__init__(config)
         # Beta distribution prior (for geometric)
         self.alpha = nn.Parameter(torch.tensor(1.))
-        self.beta = nn.Parameter(torch.tensor(5.))
+        self.beta = nn.Parameter(torch.tensor(2.))
 
     @staticmethod
     def get_truncated_window(alpha, beta):
@@ -78,8 +78,14 @@ class ExpandingAttention(CausalSelfAttention):
 
 
     @staticmethod    
-    def softmax(x, window: torch.Tensor):
-        P = F.softmax(x[:, :, -window:], dim=-1)
+    def softmax(x, window: torch.Tensor, k):
+        _, _, n_xs = x[:, :, -window:].shape
+        geo_probs = torch.tensor([ - 1/k * i for i in range(n_xs)]).flip(0)
+        # prin
+        geo_probs = geo_probs[None, None, :]
+        # print(window)
+        # print(geo_probs.shape)
+        P = F.softmax(x[:, :, -window:] + geo_probs, dim=-1)
         return P
 
     @staticmethod
@@ -106,7 +112,7 @@ class ExpandingAttention(CausalSelfAttention):
         # causal self-attention; Self-attend:
         #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # Create Attention Matrix
-        att = (q @ k.transpose(-2, -1)) * (.001 / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * (.01 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         att = att[:, :, :, -1]
         # print(att.shape)
@@ -115,35 +121,23 @@ class ExpandingAttention(CausalSelfAttention):
         alpha = self.alpha
         beta = self.beta
         k_old = torch.tensor(0)
-        ctr = 0
         # print("start")
+        # Iterative inference
         for i in range(30):
             # Softmax
             k = self.get_truncated_window(alpha, beta)
             window = torch.ceil(k)
             window = window.to(torch.int)
-            att_iter = self.softmax(att, window)
+            att_iter = self.softmax(att, window, k)
             alpha = alpha + 1
             beta = beta + self.beta_update(att_iter)
-            if k > T:
+            # Stopping criteria
+            if k > T:  # We are looking at max window size
                 break
-            if k < k_old:
+            if k < k_old:  # We don't need a bigger window
                 break
-            # if k_old.item() == window.item():
-            #     ctr +=1
-            # if ctr > 3:
-            #     break
             k_old = k.detach()
-            # if k > T or window <= k_old:
-            #     break
-            # if ((k + .5) <= k_old.item()):
-            #     break
 
-            # print("beta", beta)
-            # print("window", window)
-            # print("att", att_iter)
-        # raise
-        # print("window", window)
         att = att_iter
         self.record = {
             "attention": att,
@@ -152,12 +146,9 @@ class ExpandingAttention(CausalSelfAttention):
             "iters": i,
             "k": k
         }
-        # print(att)
-        # print(v.shape)
-        # print(window)
+
         y = self.value(att, v[:, :, -window:, :])
         y = y.transpose(1, 2).contiguous().view(B, 1, 1)
-        # print(v)
         return y
         
 
