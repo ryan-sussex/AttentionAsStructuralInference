@@ -1,5 +1,5 @@
 import torch
-torch.manual_seed(1)
+torch.manual_seed(4)
 
 from torch.nn import MSELoss
 import torch.optim as optim
@@ -11,7 +11,7 @@ from models import CausalSelfAttention, LongAttention
 
 N_BATCH = 1
 BATCH_SIZE = 200
-N_SAMPLES = 120000
+N_SAMPLES = 50000
 
 N_SEQ = 8
 N_AUTOREGRESS = 3
@@ -64,9 +64,13 @@ def seq_regression(problem, attention_model):
 
 
 if __name__ == "__main__":
-
+    training_dct = {}
     attn = CausalSelfAttention(AttentionConfig())
-    seq_regression(auto_regr_problem, attention_model=attn)
+    training_dct["standard"] = seq_regression(auto_regr_problem, attention_model=attn)
     attn = LongAttention(AttentionConfig())
-    seq_regression(auto_regr_problem, attention_model=attn)
+    training_dct["long"] = seq_regression(auto_regr_problem, attention_model=attn)
 
+    import json
+
+    with open("training.json", mode="w") as f:
+        json.dump(training_dct, f)
