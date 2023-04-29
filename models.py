@@ -166,42 +166,51 @@ class EfficientExpandingAttention(CausalSelfAttention):
         p = alpha / (alpha + beta)
         return 2 / p
 
-    def get_dot_prod(self, k: torch.Tensor, q: torch.Tensor, i):
+    def get_dot_prod(self, k: torch.Tensor, q: torch.Tensor, i, T):
         # print(i)
         if i in self.attention_cache["dot_prods"]:
             return self.attention_cache["dot_prods"][i]
         dot_prod = q[:, :, -1, :] @ k[:, :, i:i+1, :]\
             .transpose(-2, -1) * (.01 / math.sqrt(k.size(-1)))
         dot_prod = dot_prod.squeeze(-1).squeeze(0)
+        dot_prod = torch.exp(dot_prod)
+        if i == (T-1):
+            dot_prod = torch.zeros(dot_prod.shape)
         self.attention_cache["dot_prods"][i] = dot_prod
+        # print(self.attention_cache["sum"])
+        # print(dot_prod[-1])
+        # raise
+        self.attention_cache["sum"] = self.attention_cache["sum"] + dot_prod
+        # print(dot_prod)
+        # print(i)
+        # print(self.attention_cache["sum"])
         return dot_prod
 
     def get_window_stacked(self, k, q, window, T):
         if window in self.attention_cache["windows"]:
             return self.attention_cache["windows"][window]
-        total_window =  torch.stack(
-            [self.get_dot_prod(k, q, i) for i in range(T-int(window), T)],
+        total_window = torch.stack(
+            [self.get_dot_prod(k, q, i, T) for i in range(T-int(window), T)],
             dim=-1
         )
         self.attention_cache["windows"][window] = total_window
         return total_window
 
-    def get_sums(self, P, window):
-        if window in self.attention_cache["sums"]:
-            return self.attention_cache["sums"][window]
-        P[:, :, -1] = 0
-        P = torch.exp(P)
-        P_sum = P / P.sum(dim=-1)
-        self.attention_cache["sums"][window] = P_sum
-        return P_sum
 
     def softmax(self, k, q, window: torch.Tensor, m, T):
         window = window.item()
         window = min(T, abs(window))
-        # geo_probs = torch.tensor([ - i/m  for i in range(int(window))]).flip(0)
-        # geo_probs = geo_probs[None, None, :]
-        P = self.get_window_stacked(k, q, window, T)
-        P = self.get_sums(P, window)
+        geo_probs = torch.tensor([ - i/m  for i in range(1, window+1)]).flip(0)
+        geo_probs = torch.exp(geo_probs)
+        print(geo_probs)
+        geo_probs = geo_probs[None, None, :]
+        P = self.get_window_stacked(k, q, window, T) + geo_probs
+        print(geo_probs.sum())
+        P = P / (self.attention_cache["sum"] x geo_probs.sum())
+        # print( P.sum(dim=-1) - self.attention_cache["sum"])
+        # print(self.attention_cache["sum"])
+        # print(P)
+        # raise
         return P
 
     @staticmethod
@@ -245,7 +254,7 @@ class EfficientExpandingAttention(CausalSelfAttention):
         m_old = torch.tensor(0)
         # print("start")
         # Iterative inference
-        self.attention_cache = {"dot_prods":{}, "windows": {}, "sums":{}}
+        self.attention_cache = {"dot_prods":{}, "windows": {}, "sum":0}
         for i in range(30):
             # Softmax
             m = self.get_truncated_window(alpha, beta)
@@ -262,13 +271,13 @@ class EfficientExpandingAttention(CausalSelfAttention):
             m_old = m.detach()
 
         att = att_iter
-        # self.record = {
-        #     "attention": att,
-        #     "window": window,
-        #     "m_old": m_old,
-        #     "iters": i,
-        #     "m": m
-        # }
+        self.record = {
+            "attention": att,
+            "window": window,
+            "m_old": m_old,
+            "iters": i,
+            "m": m
+        }
 
         y = self.value(att, v[:, :, -window:, :])
         y = y.transpose(1, 2).contiguous().view(B, 1, 1)

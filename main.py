@@ -11,11 +11,11 @@ from models import CausalSelfAttention, LongAttention, ExpandingAttention, Effic
 
 N_BATCH = 1
 BATCH_SIZE = 1
-N_SAMPLES = 2000
+N_SAMPLES = 5000
 
-N_SEQ = 30
+N_SEQ = 100
 N_AUTOREGRESS = 2
-EMBED_DIM = 20
+EMBED_DIM = 300
 OUTPUT_DIM = 1
 LR = 1e-3
 
@@ -60,16 +60,16 @@ def seq_regression(problem, attention_model):
                 f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
             )
             training_history.append(loss.item())
-            #     print(X)
-            #     print(y)
-            #     print("window", attention_model.record["window"].item())
-            #     print("iters", attention_model.record["iters"])
-            #     # print("k", attention_model.record["k"])
-            #     print(attention_model.record["attention"])
+        #     print(X)
+        #     print(y)
+            print("window", attention_model.record["window"].item())
+            print("iters", attention_model.record["iters"])
+            # print("k", attention_model.record["k"])
+            print(attention_model.record["attention"])
 
-            # # print(problem.record)
-            #     print(attention_model.alpha)
-            #     print(attention_model.beta)
+        # # print(problem.record)
+        #     print(attention_model.alpha)
+        #     print(attention_model.beta)
 
     return training_history
 

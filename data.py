@@ -111,6 +111,6 @@ class AutoRegression(Regression):
         self.record = {"idx": idx}
         # print(idx)
         # raise
-        X = X[:, idx, :]
+        # X = X[:, idx, :]
         return X, y
 
