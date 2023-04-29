@@ -150,6 +150,159 @@ class ExpandingAttention(CausalSelfAttention):
         y = self.value(att, v[:, :, -window:, :])
         y = y.transpose(1, 2).contiguous().view(B, 1, 1)
         return y
+
+
+
+class EfficientExpandingAttention(CausalSelfAttention):
+    def __init__(self, config):
+        super().__init__(config)
+        # Beta distribution prior (for geometric)
+        self.alpha = nn.Parameter(torch.tensor(1.))
+        self.beta = nn.Parameter(torch.tensor(2.))
+
+    @staticmethod
+    def get_truncated_window(alpha, beta):
+        # batch size, sequence length, embedding dimensionality (n_embd)
+        p = alpha / (alpha + beta)
+        return 2 / p
+
+    def get_dot_prod(self, k: torch.Tensor, q: torch.Tensor, i):
+        # print(i)
+        if i in self.attention_cache["dot_prods"]:
+            return self.attention_cache["dot_prods"][i]
+        dot_prod = q[:, :, -1, :] @ k[:, :, i:i+1, :]\
+            .transpose(-2, -1) * (.01 / math.sqrt(k.size(-1)))
+        dot_prod = dot_prod.squeeze(-1).squeeze(0)
+        self.attention_cache["dot_prods"][i] = dot_prod
+        return dot_prod
+
+    def get_window_stacked(self, k, q, window, T):
+        if window in self.attention_cache["windows"]:
+            return self.attention_cache["windows"][window]
+        total_window =  torch.stack(
+            [self.get_dot_prod(k, q, i) for i in range(T-int(window), T)],
+            dim=-1
+        )
+        self.attention_cache["windows"][window] = total_window
+        return total_window
+
+    def get_sums(self, P, window):
+        if window in self.attention_cache["sums"]:
+            return self.attention_cache["sums"][window]
+        P[:, :, -1] = 0
+        P = torch.exp(P)
+        P_sum = P / P.sum(dim=-1)
+        self.attention_cache["sums"][window] = P_sum
+        return P_sum
+
+    def softmax(self, k, q, window: torch.Tensor, m, T):
+        ## need to work out if already computed
+        # print(window)
+        # self.get_dot_prod(k, q, window)
+        # x = q @ k.transpose(-2, -1) * (.01 / math.sqrt(k.size(-1)))
+        # x = x.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        # x = x[:, :, :, -1]
+        # x[:, :, -1] = float('-inf')
+
+        # _, _, n_xs = x[:, :, -window:].shape
+        # print(n_xs)
+        # print(window)
+        window = window.item()
+        window = min(T, abs(window))
+        geo_probs = torch.tensor([ - i/m  for i in range(int(window))]).flip(0)
+        # prin
+        geo_probs = geo_probs[None, None, :]
+        # print(window)
+        # print(geo_probs.shape)
+        # P = F.softmax(x[:, :, -window:] + geo_probs, dim=-1)
+        # foo = [self.get_dot_prod(k, q, i) for i in range(T-int(window), T)]
+        # print(T)
+        # print(window)
+        # print(range(T-int(window), T))
+
+        # print(foo)
+        # print(window)
+        P = self.get_window_stacked(k, q, window, T)
+        # torch.stack(
+        #     [self.get_dot_prod(k, q, i) for i in range(T-int(window), T)],
+        #     dim=-1
+        # )
+        # print("foo")
+        # print(window)
+        # print(T)
+        # print(P)
+        # print(P.shape)
+        # raise
+        P = self.get_sums(P, window)
+        # print(P)
+        return P
+
+    @staticmethod
+    def beta_update(att: torch.Tensor):
+        count = torch.range(att.size(-1) - 1, 0, step=-1) # T
+        # print(count)
+        beta_update = torch.einsum("bht, t -> bh", att, count)
+        # print("beta update", beta_update)
+        # print(beta)
+        return beta_update
+
+    def forward(self, x):
+        B, T, C = x.size() 
+        # calculate query, key, values 
+        # for all heads in batch and move head forward to be the batch dim
+        q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) 
+        # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+        # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, 1).transpose(1, 2)
+        # (B, nh, T, hs)
+
+        # causal self-attention; Self-attend:
+        #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+        # Create Attention Matrix
+
+        # Need to do this online
+        # att = (q @ k.transpose(-2, -1)) * (.01 / math.sqrt(k.size(-1)))
+        # att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        # att = att[:, :, :, -1]
+
+        # print(att.shape)
+        # att[:, :, -1] = float('-inf')
+        # print(att)
+        alpha = self.alpha
+        beta = self.beta
+        m_old = torch.tensor(0)
+        # print("start")
+        # Iterative inference
+        self.attention_cache = {"dot_prods":{}, "windows": {}, "sums":{}}
+        for i in range(30):
+            # Softmax
+            m = self.get_truncated_window(alpha, beta)
+            window = torch.ceil(m)
+            window = window.to(torch.int)
+            att_iter = self.softmax(k, q, window, m, T)
+            alpha = alpha + 1
+            beta = beta + self.beta_update(att_iter)
+            # Stopping criteria
+            if m > T:  # We are looking at max window size
+                break
+            if m < m_old:  # We don't need a bigger window
+                break
+            m_old = m.detach()
+
+        att = att_iter
+        self.record = {
+            "attention": att,
+            "window": window,
+            "m_old": m_old,
+            "iters": i,
+            "m": m
+        }
+
+        y = self.value(att, v[:, :, -window:, :])
+        y = y.transpose(1, 2).contiguous().view(B, 1, 1)
+        return y
         
 
 
