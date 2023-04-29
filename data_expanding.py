@@ -67,13 +67,13 @@ class AutoRegression(Regression):
         outgroup_size = self.sequence_length - self.ingroup_size
 
         in_group = [ torch.normal(
-            mean=torch.ones(batch_size, 1, self.input_dim),
-            std=10
+            mean=torch.ones(batch_size, 1, self.input_dim)* 10,
+            std=.1
         )
         ]
         outgroup = torch.normal(
-            mean=torch.ones(batch_size, outgroup_size, self.input_dim),
-            std=10
+            mean=torch.zeros(batch_size, outgroup_size, self.input_dim),
+            std=.1
         )
 
         for i in range(1, self.ingroup_size):
@@ -97,8 +97,8 @@ class AutoRegression(Regression):
             # print(self.sequence_length - self.ingroup_size)
             for i in range(1, self.ingroup_size):
                 # print(self.sequence_length - self.ingroup_size + i)
-                x = x + X[:, self.sequence_length - self.ingroup_size + i, -1]
-
+                # x = x + X[:, self.sequence_length - self.ingroup_size + i, -1]
+                pass
             x = x[:, None]
             y = self.regr_func(x).t()
         # randomly select a single y
@@ -108,7 +108,9 @@ class AutoRegression(Regression):
         random.shuffle(idx)
         # raise
         idx = idx + [self.sequence_length - 1]
+        self.record = {"idx": idx}
         # print(idx)
         # raise
-        X = X[:, idx, :]
+        # X = X[:, idx, :]
         return X, y
+
