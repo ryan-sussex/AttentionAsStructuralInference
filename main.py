@@ -13,9 +13,9 @@ N_BATCH = 1
 BATCH_SIZE = 1
 N_SAMPLES = 2000
 
-N_SEQ = 10
+N_SEQ = 30
 N_AUTOREGRESS = 2
-EMBED_DIM = 5
+EMBED_DIM = 20
 OUTPUT_DIM = 1
 LR = 1e-3
 
@@ -55,11 +55,11 @@ def seq_regression(problem, attention_model):
         loss.backward()
         optimizer.step()
         if batch_no % RECORD_EVERY == 0:
-            if  loss.item() > 0:
-                print(
-                    f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
-                )
-                training_history.append(loss.item())
+            # if  loss.item() > 0:
+            print(
+                f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
+            )
+            training_history.append(loss.item())
             #     print(X)
             #     print(y)
             #     print("window", attention_model.record["window"].item())
@@ -78,8 +78,8 @@ if __name__ == "__main__":
     training_dct = {}
     attn = EfficientExpandingAttention(AttentionConfig())
     training_dct["expanding"] = seq_regression(auto_regr_problem, attention_model=attn)
-    attn = CausalSelfAttention(AttentionConfig())
-    training_dct["standard"] = seq_regression(auto_regr_problem, attention_model=attn)
+    # attn = CausalSelfAttention(AttentionConfig())
+    # training_dct["standard"] = seq_regression(auto_regr_problem, attention_model=attn)
     attn = ExpandingAttention(AttentionConfig())
     training_dct["expanding"] = seq_regression(auto_regr_problem, attention_model=attn)
     attn = LongAttention(AttentionConfig())
