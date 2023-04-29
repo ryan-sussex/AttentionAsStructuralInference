@@ -177,13 +177,7 @@ class EfficientExpandingAttention(CausalSelfAttention):
         if i == (T-1):
             dot_prod = torch.zeros(dot_prod.shape)
         self.attention_cache["dot_prods"][i] = dot_prod
-        # print(self.attention_cache["sum"])
-        # print(dot_prod[-1])
-        # raise
         self.attention_cache["sum"] = self.attention_cache["sum"] + dot_prod
-        # print(dot_prod)
-        # print(i)
-        # print(self.attention_cache["sum"])
         return dot_prod
 
     def get_window_stacked(self, k, q, window, T):
@@ -200,17 +194,11 @@ class EfficientExpandingAttention(CausalSelfAttention):
     def softmax(self, k, q, window: torch.Tensor, m, T):
         window = window.item()
         window = min(T, abs(window))
-        geo_probs = torch.tensor([ - i/m  for i in range(1, window+1)]).flip(0)
-        geo_probs =
-        print(geo_probs)
-        geo_probs = geo_probs[None, None, :]
-        P = self.get_window_stacked(k, q, window, T) + geo_probs
-        print(geo_probs.sum())
-        P = P / (self.attention_cache["sum"] + geo_probs.sum())
-        # print( P.sum(dim=-1) - self.attention_cache["sum"])
-        # print(self.attention_cache["sum"])
-        # print(P)
-        # raise
+        # geo_probs = torch.tensor([ - i/m  for i in range(1, window+1)]).flip(0)
+        # geo_probs = geo_probs[None, None, :]
+        P = self.get_window_stacked(k, q, window, T)
+        # + geo_probs
+        P = P / (self.attention_cache["sum"])
         return P
 
     @staticmethod
@@ -237,22 +225,9 @@ class EfficientExpandingAttention(CausalSelfAttention):
         v = v.view(B, T, self.n_head, 1).transpose(1, 2)
         # (B, nh, T, hs)
 
-        # causal self-attention; Self-attend:
-        #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-        # Create Attention Matrix
-
-        # Need to do this online
-        # att = (q @ k.transpose(-2, -1)) * (.01 / math.sqrt(k.size(-1)))
-        # att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
-        # att = att[:, :, :, -1]
-
-        # print(att.shape)
-        # att[:, :, -1] = float('-inf')
-        # print(att)
         alpha = self.alpha
         beta = self.beta
         m_old = torch.tensor(0)
-        # print("start")
         # Iterative inference
         self.attention_cache = {"dot_prods":{}, "windows": {}, "sum":0}
         for i in range(30):
@@ -331,13 +306,3 @@ class LongAttention(CausalSelfAttention):
         I = torch.eye(T).reshape(1, T, T).repeat(B, nh, 1, 1)
         paths = (I + P + P @ P) / 3
         return paths   # (B, nh, T, TxT)
-
-
-# class StackedAttention(nn.Module): 
-#     def __init__(self, config, attention_model, layers: int = 2) -> None:
-#         self.attention = nn.Sequential(
-#             [("attention_{i}", attention_model(config))]
-#         )
-    
-#     def forward(self, x):
-#         return self.attention(x)
