@@ -1,5 +1,5 @@
 import torch
-torch.manual_seed(4)
+torch.manual_seed(8)
 
 from torch.nn import MSELoss
 import torch.optim as optim
@@ -11,11 +11,12 @@ from models import CausalSelfAttention, LongAttention
 
 N_BATCH = 1
 BATCH_SIZE = 200
-N_SAMPLES = 50000
+N_SAMPLES = 20000
+N_RUNS = 10
 
-N_SEQ = 8
+N_SEQ = 5
 N_AUTOREGRESS = 3
-EMBED_DIM = 1
+EMBED_DIM = 3
 OUTPUT_DIM = 1
 LR = 1e-3
 
@@ -29,12 +30,7 @@ class AttentionConfig():
 
 att_config = AttentionConfig()
 
-auto_regr_problem = AutoRegression(
-    input_dim=EMBED_DIM, 
-    output_dim=OUTPUT_DIM,
-    sequence_length=N_SEQ, 
-    ingroup_size=N_AUTOREGRESS
-)
+
 
 
 loss_fn = MSELoss(reduction="mean")
@@ -59,18 +55,35 @@ def seq_regression(problem, attention_model):
                 f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
             )
             training_history.append(loss.item())
+            # print(X)
+            # print(X[0])
+            # print(y[0])
+            # print(output_pred[0])
+            print(torch.round(attention_model.record["attention"][0, 0, -1, :], decimals=2))
+            # print(problem.record["idx"])
 
     return training_history
 
 
 if __name__ == "__main__":
-    training_dct = {}
-    attn = CausalSelfAttention(AttentionConfig())
-    training_dct["standard"] = seq_regression(auto_regr_problem, attention_model=attn)
-    attn = LongAttention(AttentionConfig())
-    training_dct["long"] = seq_regression(auto_regr_problem, attention_model=attn)
+    multiple_training_dct = {}
+    for i in range(N_RUNS):
+        print("="*100)
+        print(f"iteration {i}")
+        torch.manual_seed(i)
+        auto_regr_problem = AutoRegression(
+            input_dim=EMBED_DIM, 
+            output_dim=OUTPUT_DIM,
+            sequence_length=N_SEQ, 
+            ingroup_size=N_AUTOREGRESS
+        )
+        training_dct = {}
+        attn = LongAttention(AttentionConfig())
+        training_dct["long"] = seq_regression(auto_regr_problem, attention_model=attn)
+        attn = CausalSelfAttention(AttentionConfig())
+        training_dct["standard"] = seq_regression(auto_regr_problem, attention_model=attn)
+        multiple_training_dct[i] = training_dct
 
     import json
-
-    with open("training.json", mode="w") as f:
-        json.dump(training_dct, f)
+    with open("multiple_training.json", mode="w") as f:
+        json.dump(multiple_training_dct, f)
