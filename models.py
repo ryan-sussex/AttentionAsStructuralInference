@@ -52,7 +52,7 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend:
         #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # Create Attention Matrix
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * (.01 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         # Softmax
         att = self.softmax(att)
@@ -60,7 +60,7 @@ class CausalSelfAttention(nn.Module):
 
         y = y.transpose(1, 2).contiguous().view(B, T, 1) 
         # re-assemble all head outputs side by side
-        self.record = {"attention": att}
+        self.record = {"attention": att[:, :, -1, ]}
         return y
 
 
@@ -68,8 +68,8 @@ class ExpandingAttention(CausalSelfAttention):
     def __init__(self, config):
         super().__init__(config)
         # Beta distribution prior (for geometric)
-        self.alpha = nn.Parameter(torch.tensor(1.))
-        self.beta = nn.Parameter(torch.tensor(2.))
+        self.alpha = nn.Parameter(torch.tensor(.0001))
+        self.beta = nn.Parameter(torch.tensor(.0012))
 
     @staticmethod
     def get_truncated_window(alpha, beta):
@@ -81,12 +81,12 @@ class ExpandingAttention(CausalSelfAttention):
     @staticmethod    
     def softmax(x, window: torch.Tensor, k):
         _, _, n_xs = x[:, :, -window:].shape
-        geo_probs = torch.tensor([ - 1/k * i for i in range(n_xs)]).flip(0)
-        # prin
-        geo_probs = geo_probs[None, None, :]
-        # print(window)
-        # print(geo_probs.shape)
-        P = F.softmax(x[:, :, -window:] + geo_probs, dim=-1)
+        geo_probs = torch.tensor([- 1/k * i  for i in range(n_xs)]).flip(0)
+        P = F.softmax(
+            x[:, :, -window:]
+              + geo_probs,
+            dim=-1
+        )
         return P
 
     @staticmethod
@@ -113,7 +113,7 @@ class ExpandingAttention(CausalSelfAttention):
         # causal self-attention; Self-attend:
         #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # Create Attention Matrix
-        att = (q @ k.transpose(-2, -1)) * (.01 / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * (.1 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         att = att[:, :, :, -1]
         # print(att.shape)
@@ -124,9 +124,11 @@ class ExpandingAttention(CausalSelfAttention):
         k_old = torch.tensor(0)
         # print("start")
         # Iterative inference
-        for i in range(30):
+        tol = 0.01
+        for i in range(100):
             # Softmax
             k = self.get_truncated_window(alpha, beta)
+            # print(k)
             window = torch.ceil(k)
             window = window.to(torch.int)
             att_iter = self.softmax(att, window, k)
@@ -135,7 +137,9 @@ class ExpandingAttention(CausalSelfAttention):
             # Stopping criteria
             if k > T:  # We are looking at max window size
                 break
-            if k < k_old:  # We don't need a bigger window
+            # if k < k_old:  # We don't need a bigger window
+            #     break
+            if (k - k_old) < tol:  # We don't need a bigger window
                 break
             k_old = k.detach()
 
