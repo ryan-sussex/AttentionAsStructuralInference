@@ -60,6 +60,7 @@ class CausalSelfAttention(nn.Module):
 
         y = y.transpose(1, 2).contiguous().view(B, T, 1) 
         # re-assemble all head outputs side by side
+        self.record = {"attention": att}
         return y
 
 
@@ -302,7 +303,12 @@ class LongAttention(CausalSelfAttention):
         """
         B, nh, T, _ = x.size()
         # (B, nh, T, T)
-        P = F.softmax(x, dim=-1)
+        P = F.softmax(x, dim=-2)
+        # print(P[0, 0, :, :].sum(dim=-2))
+        # raise
         I = torch.eye(T).reshape(1, T, T).repeat(B, nh, 1, 1)
         paths = (I + P + P @ P) / 3
-        return paths   # (B, nh, T, TxT)
+        # print(paths[0, 0, :, :].sum(dim=-1))
+
+        paths = paths.transpose(-1, -2)   # (B, nh, T, TxT)
+        return paths
