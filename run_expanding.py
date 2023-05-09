@@ -11,7 +11,7 @@ from models import CausalSelfAttention, ExpandingAttention, EfficientExpandingAt
 
 N_BATCH = 1
 BATCH_SIZE = 1
-N_SAMPLES = 20000
+N_SAMPLES = 40000
 
 N_SEQ = 50
 N_AUTOREGRESS = 2
@@ -54,17 +54,18 @@ def seq_regression(problem, attention_model):
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
+
+        training_history["loss"].append(loss.item())
+        iters = attention_model.record.get("iters", 0)
+        training_history["iters"].append(iters)
+        window = attention_model.record.get("window", torch.Tensor([0.])).item()
+        training_history["window"].append(window)
         if batch_no % RECORD_EVERY == 0:
 
             # if  loss.item() > 0:
             print(
                 f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
             )
-            training_history["loss"].append(loss.item())
-            iters = attention_model.record.get("iters", 0)
-            training_history["iters"].append(iters)
-            window = attention_model.record.get("window", torch.Tensor([0.])).item()
-            training_history["window"].append(window)
             print("iters", iters)
             print("window", window)
 
@@ -74,9 +75,9 @@ def seq_regression(problem, attention_model):
             # print("window", attention_model.record["window"].item())
             # print("iters", attention_model.record["iters"])
             # print("k", attention_model.record["k"])
-            # # print(problem.record["idx"])
-            # # print(attention_model.record["attention"])
-
+            print(problem.record["idx"].index(N_SEQ - 2))
+            print(N_SEQ - attention_model.record["attention"].size(-1) + torch.argmax(attention_model.record["attention"]).item())
+            # print(attention_model.record["attention"])
             # # # print(problem.record)
             # print(attention_model.alpha)
             # print(attention_model.beta)

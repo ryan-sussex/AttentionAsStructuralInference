@@ -78,7 +78,7 @@ class AutoRegression(Regression):
             torch.rand(batch_size, 1, self.input_dim) * 10
         ]
         outgroup = torch.normal(
-            mean=torch.ones(batch_size, outgroup_size, self.input_dim),
+            mean=torch.zeros(batch_size, outgroup_size, self.input_dim),
             std=STD
         )
 
