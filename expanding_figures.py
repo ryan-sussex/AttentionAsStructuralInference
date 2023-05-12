@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 
 from enum import Enum
 
-from run_expanding import RecordResult, RecordExperiment, RecordMultipleResults
+from run_expanding import RecordResult, RecordExperiment, RecordMultipleResults, EMBED_DIM
 
 purple = "rgba(204,204,245,255)"
 green = "rgba(191,230,191,255)"
@@ -29,13 +29,13 @@ def dataclass_from_dict(klass, d):
 class PlotlyTraceConfig:
     name: str
     color: str
-    marker_size: int = 20
+    marker_size: int = 10
     marker_color: str = "black"
 
 
 class TraceType(Enum):
-    expanding = PlotlyTraceConfig("expanding", green)
-    standard = PlotlyTraceConfig("standard", purple)
+    expanding = PlotlyTraceConfig("Expanding", green)
+    standard = PlotlyTraceConfig("Self Attention", purple)
 
 
 def calculate_expanding_complexity(
@@ -90,7 +90,7 @@ def get_loss_traces_from_result(record: RecordResult):
 
 def get_complexity_bar_trace(complexity, trace_type: PlotlyTraceConfig, geo_p:float):
     return go.Bar(
-        x=[f"p = {geo_p} <br> (Avg. distance to target: {int(1/geo_p)})"], 
+        x=[f"$p = {geo_p}, D_T={int(1/geo_p)}$"], 
         y=[complexity], 
         marker=dict(color=trace_type.color, 
             opacity=1,
@@ -131,8 +131,10 @@ def get_bar_traces_from_result(result: RecordResult):
 
 
 if __name__ == "__main__":
-    
-    with open("expanding.json", mode="r") as f:
+    dim = 10
+    assert dim == EMBED_DIM
+
+    with open(f"expanding_{dim}.json", mode="r") as f:
         training_history = json.load(f)
     
     # print(record)
@@ -183,7 +185,7 @@ if __name__ == "__main__":
         )
         fig.update_layout(layout)
     
-        fig.show()
+        # fig.show()
 
 
     selfattention_complexity = (
@@ -192,15 +194,23 @@ if __name__ == "__main__":
     )
     fig = make_subplots(cols=len(figures), rows=1)
     for i, figure in enumerate(figures):
-        fig.layout[f"xaxis{i+5}"] = dict({'anchor': f'y{i+1}', 'overlaying': f'x{i+1}', 'side': 'top', "showticklabels":False})
+        fig.layout[f"xaxis{i+5}"] = dict({'anchor': f'y{i+1}', 'overlaying': f'x{i+1}', 'side': 'top', "showticklabels":False, "showgrid":False})
+        fig.layout[f"xaxis{i+1}"].update(showgrid=False)
         # fig.layout[f"xaxis{i+1}"].update(title=f"p={records[i].expanding.geo_p}")
         if i >= 0:
-            fig.layout[f"yaxis{i+1}"].update(showticklabels=False, range=[0,  1.3 * selfattention_complexity ])
+            fig.layout[f"yaxis{i+1}"].update(showticklabels=False, range=[-50,  1.3 * selfattention_complexity], showgrid=False)
         if i == 0:
             fig.layout[f"yaxis{i+1}"].update(
-                tickvals = [selfattention_complexity],
-                ticktext = ["Self Attention"],
-                showticklabels=True
+                tickvals = [0, selfattention_complexity],
+                ticktext = [0, 1],
+                showline = True,
+                showticklabels=True,
+                # tickson="boundaries",
+                # ticklen=20,
+                showgrid=True,
+                linecolor = '#636363',
+                  gridcolor = '#bdbdbd',
+
             )         
             
         for j, trace_data in enumerate(figure["data"]):
@@ -218,9 +228,9 @@ if __name__ == "__main__":
         layout = go.Layout(
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            title=f"d={record.expanding.attention_config.n_embd}",
+            title=f"$d={record.expanding.attention_config.n_embd}$",
             # xaxis2_title="Batch",
-            yaxis_title="Relative Complexity",
+            yaxis_title='$\\textrm{Relative Complexity } (\\frac{nd}{md + k})$',
             # yaxis2_title="Approx. Number of Operations",
             legend=dict(x=0.1, y=1.1),
             # legend_x=0, 

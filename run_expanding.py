@@ -1,17 +1,18 @@
 from typing import List
+from dataclasses import dataclass, asdict
 
+import numpy as np
 import torch
-RANDOM_SEED = 2
+RANDOM_SEED = 4
 torch.manual_seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)
 
 from torch.nn import MSELoss
 import torch.optim as optim
 
 from data_expanding import AutoRegression
-from models import CausalSelfAttention, ExpandingAttention, EfficientExpandingAttention
+from models import CausalSelfAttention, ExpandingAttention
 
-from dataclasses import dataclass, asdict
-from enum import Enum
 
 
 N_BATCH = 1
