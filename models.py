@@ -12,7 +12,7 @@ class CausalSelfAttention(nn.Module):
     explicit implementation here to show that there is nothing too scary here.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, self_attend=True):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
@@ -25,6 +25,7 @@ class CausalSelfAttention(nn.Module):
             ).view(1, 1, config.block_size, config.block_size))
         self.n_head = config.n_head
         self.n_embd = config.n_embd
+        self.self_attend = self_attend
 
     @staticmethod
     def softmax(x):
@@ -54,6 +55,10 @@ class CausalSelfAttention(nn.Module):
         # Create Attention Matrix
         att = (q @ k.transpose(-2, -1)) * (1. / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        if not self.self_attend:
+            att[:,:, -1, -1] = float("-inf")
+        # print(att)
+        # raise
         # Softmax
         att = self.softmax(att)
         y = self.value(att, v)
@@ -139,8 +144,8 @@ class ExpandingAttention(CausalSelfAttention):
             # Stopping criteria
             if k > T:  # We are looking at max window size
                 break
-            # if k < k_old:  # We don't need a bigger window
-            #     break
+            if k < k_old:  # We don't need a bigger window
+                break
             if (k - k_old) < tol:  # We don't need a bigger window
                 break
             k_old = k.detach()
