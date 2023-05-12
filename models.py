@@ -12,21 +12,22 @@ class CausalSelfAttention(nn.Module):
     explicit implementation here to show that there is nothing too scary here.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, self_attend=True):
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 2 * config.n_embd + 1, bias=False)
         # output projection
         self.register_buffer(
-            "bias", 
+            "bias",
             torch.tril(
                 torch.ones(config.block_size, config.block_size)
             ).view(1, 1, config.block_size, config.block_size))
         self.n_head = config.n_head
         self.n_embd = config.n_embd
+        self.self_attend = self_attend
 
-    @staticmethod    
+    @staticmethod
     def softmax(x):
         P = F.softmax(x, dim=-1)
         return P
@@ -36,13 +37,13 @@ class CausalSelfAttention(nn.Module):
         return att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
 
     def forward(self, x):
-        B, T, C = x.size() 
+        B, T, C = x.size()
         # batch size, sequence length, embedding dimensionality (n_embd)
 
-        # calculate query, key, values 
+        # calculate query, key, values
         # for all heads in batch and move head forward to be the batch dim
         q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) 
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
@@ -52,15 +53,19 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend:
         #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # Create Attention Matrix
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * (1. / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        if not self.self_attend:
+            att[:,:, -1, -1] = float("-inf")
+        # print(att)
+        # raise
         # Softmax
         att = self.softmax(att)
         y = self.value(att, v)
 
-        y = y.transpose(1, 2).contiguous().view(B, T, 1) 
+        y = y.transpose(1, 2).contiguous().view(B, T, 1)
         # re-assemble all head outputs side by side
-        self.record = {"attention": att}
+        self.record = {"attention": att[:, :, -1, ]}
         return y
 
 
@@ -68,42 +73,42 @@ class ExpandingAttention(CausalSelfAttention):
     def __init__(self, config):
         super().__init__(config)
         # Beta distribution prior (for geometric)
-        self.alpha = nn.Parameter(torch.tensor(1.))
-        self.beta = nn.Parameter(torch.tensor(2.))
+        self.alpha = nn.Parameter(torch.tensor(.1))
+        self.beta = nn.Parameter(torch.tensor(.9))
 
     @staticmethod
     def get_truncated_window(alpha, beta):
         # batch size, sequence length, embedding dimensionality (n_embd)
         p = alpha / (alpha + beta)
-        return 2 / p
+        window = torch.log(torch.Tensor([.05])) / torch.log(1 - p)
+        # print(window)
+        return window
 
 
-    @staticmethod    
+    @staticmethod
     def softmax(x, window: torch.Tensor, k):
         _, _, n_xs = x[:, :, -window:].shape
-        geo_probs = torch.tensor([ - 1/k * i for i in range(n_xs)]).flip(0)
-        # prin
-        geo_probs = geo_probs[None, None, :]
-        # print(window)
-        # print(geo_probs.shape)
-        P = F.softmax(x[:, :, -window:] + geo_probs, dim=-1)
+        geo_probs = torch.tensor([- 1/k * i  for i in range(n_xs)]).flip(0)
+        #
+        P = F.softmax(
+            x[:, :, -window:]
+              + geo_probs,
+            dim=-1
+        )
         return P
 
     @staticmethod
-    def beta_update(att: torch.Tensor):
+    def beta_update(att: torch.Tensor, k):
         count = torch.range(att.size(-1) - 1, 0, step=-1) # T
-        # print(count)
         beta_update = torch.einsum("bht, t -> bh", att, count)
-        # print("beta update", beta_update)
-        # print(beta)
         return beta_update
 
     def forward(self, x):
-        B, T, C = x.size() 
-        # calculate query, key, values 
+        B, T, C = x.size()
+        # calculate query, key, values
         # for all heads in batch and move head forward to be the batch dim
         q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) 
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
@@ -113,7 +118,7 @@ class ExpandingAttention(CausalSelfAttention):
         # causal self-attention; Self-attend:
         #  (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # Create Attention Matrix
-        att = (q @ k.transpose(-2, -1)) * (.01 / math.sqrt(k.size(-1)))
+        att = (q @ k.transpose(-2, -1)) * (1. / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         att = att[:, :, :, -1]
         # print(att.shape)
@@ -124,18 +129,24 @@ class ExpandingAttention(CausalSelfAttention):
         k_old = torch.tensor(0)
         # print("start")
         # Iterative inference
-        for i in range(30):
+        tol = 0.01
+        for i in range(100):
             # Softmax
             k = self.get_truncated_window(alpha, beta)
+            # if i == 0:
+            #     print(k)
+            # print(k)
             window = torch.ceil(k)
             window = window.to(torch.int)
             att_iter = self.softmax(att, window, k)
             alpha = alpha + 1
-            beta = beta + self.beta_update(att_iter)
+            beta = beta + self.beta_update(att_iter, k)
             # Stopping criteria
             if k > T:  # We are looking at max window size
                 break
             if k < k_old:  # We don't need a bigger window
+                break
+            if (k - k_old) < tol:  # We don't need a bigger window
                 break
             k_old = k.detach()
 
@@ -212,14 +223,14 @@ class EfficientExpandingAttention(CausalSelfAttention):
         return beta_update
 
     def forward(self, x):
-        B, T, C = x.size() 
-        # calculate query, key, values 
+        B, T, C = x.size()
+        # calculate query, key, values
         # for all heads in batch and move head forward to be the batch dim
 
         # We are still computing these for more values than necessary!!
         # For efficient implementation we need to split
         q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) 
+        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         # (B, nh, T, hs)
@@ -258,7 +269,7 @@ class EfficientExpandingAttention(CausalSelfAttention):
         y = self.value(att, v[:, :, -window:, :])
         y = y.transpose(1, 2).contiguous().view(B, 1, 1)
         return y
-        
+
 
 
 class ThreeAttention(CausalSelfAttention):
