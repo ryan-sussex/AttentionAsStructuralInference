@@ -162,5 +162,5 @@ if __name__ == "__main__":
     # all_results = RecordMultipleResults(results=all_results)
 
     import json
-    with open(f"expanding_{EMBED_DIM}.json", mode="w") as f:
+    with open(f"./data/expanding_{EMBED_DIM}.json", mode="w") as f:
         json.dump(all_results, f)

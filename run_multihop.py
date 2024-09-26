@@ -55,13 +55,6 @@ def seq_regression(problem, attention_model):
                 f"model:{repr(attention_model)} batch_no:{batch_no} mse:{loss}"
             )
             training_history.append(loss.item())
-            # print(X)
-            # print(X[0])
-            # print(y[0])
-            # print(output_pred[0])
-            print(torch.round(attention_model.record["attention"][0, 0, -1, :], decimals=2))
-            # print(problem.record["idx"])
-
     return training_history
 
 
@@ -85,5 +78,5 @@ if __name__ == "__main__":
         multiple_training_dct[i] = training_dct
 
     import json
-    with open("multiple_training.json", mode="w") as f:
+    with open("./data/multiple_training.json", mode="w") as f:
         json.dump(multiple_training_dct, f)
