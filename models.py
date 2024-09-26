@@ -8,8 +8,7 @@ from torch.nn import functional as F
 class CausalSelfAttention(nn.Module):
     """
     A vanilla multi-head masked self-attention layer with a projection at the end.
-    It is possible to use torch.nn.MultiheadAttention here but I am including an
-    explicit implementation here to show that there is nothing too scary here.
+    Roughly following Karparthy minGPT.
     """
 
     def __init__(self, config, self_attend=True):
@@ -57,8 +56,6 @@ class CausalSelfAttention(nn.Module):
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         if not self.self_attend:
             att[:,:, -1, -1] = float("-inf")
-        # print(att)
-        # raise
         # Softmax
         att = self.softmax(att)
         y = self.value(att, v)
@@ -315,11 +312,7 @@ class LongAttention(CausalSelfAttention):
         B, nh, T, _ = x.size()
         # (B, nh, T, T)
         P = F.softmax(x, dim=-2)
-        # print(P[0, 0, :, :].sum(dim=-2))
-        # raise
         I = torch.eye(T).reshape(1, T, T).repeat(B, nh, 1, 1)
         paths = (I + P + P @ P) / 3
-        # print(paths[0, 0, :, :].sum(dim=-1))
-
         paths = paths.transpose(-1, -2)   # (B, nh, T, TxT)
         return paths

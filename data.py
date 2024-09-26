@@ -68,12 +68,6 @@ class AutoRegression(Regression):
     def sample_X(self, batch_size: int) -> Tensor:
         outgroup_size = self.sequence_length - self.ingroup_size
 
-        # in_group = [ torch.normal(
-        #     mean=torch.ones(batch_size, 1, self.input_dim),
-        #     std=10
-        # )
-        # ]
-
         in_group = [
             torch.rand(batch_size, 1, self.input_dim) * 10
         ]
@@ -100,27 +94,15 @@ class AutoRegression(Regression):
         with torch.no_grad():
             X = self.sample_X(batch_size)
             x = X[:, self.sequence_length - self.ingroup_size, :]
-            # print(self.sequence_length - self.ingroup_size)
             for i in range(self.ingroup_size):
-                # print(self.sequence_length - self.ingroup_size + i)
-                # print(self.sequence_length - self.ingroup_size + i)
                 x = x + X[:, self.sequence_length - self.ingroup_size + i, :]
-            # raise
             # x = x[:, :]
-            # print(x.shape)
             y = self.regr_func(x).t()
-            # print(y.shape)
-            # raise
-            # .t()
         # randomly select a single y
         # shuffle X
-        # print(X.size())
         idx = list(range(self.sequence_length - 1))
         random.shuffle(idx)
-        # raise
         idx = idx + [self.sequence_length - 1]
         self.record = {"idx": idx}
-        # print(idx)
-        # raise
         X = X[:, idx, :]
         return X, y

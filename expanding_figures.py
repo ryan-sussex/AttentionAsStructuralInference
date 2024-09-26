@@ -245,4 +245,4 @@ if __name__ == "__main__":
     
     fig.show()
 
-    fig.write_image(f"expanding_{record.expanding.attention_config.n_embd}.png")
+    fig.write_image(f"./figures/expanding_{record.expanding.attention_config.n_embd}.png")

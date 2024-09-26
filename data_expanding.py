@@ -89,13 +89,6 @@ class AutoRegression(Regression):
         X = torch.cat(in_group, dim=1)
         return X
 
-
-    # @staticmethod
-    # def generate_shuffle(idx):
-    #     idx = idx.copy()
-    #     random.shuffle(idx)
-    #     return idx.copy()
-
     def generate_shuffle(self, idx):
         x_i = np.random.geometric(self.geo_p)
         idx = idx.copy()
