@@ -16,4 +16,4 @@ Other files
 ---
 `models.py` contains neural net definitions
 
-`data.py` and `data_expanding.py` contain the code for generating toy data as found int  
+`data.py` and `data_expanding.py` contain the code for generating toy data as described in the paper.
